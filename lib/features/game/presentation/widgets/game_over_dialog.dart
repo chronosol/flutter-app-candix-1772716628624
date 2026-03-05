@@ -14,46 +14,45 @@ class GameOverDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      backgroundColor: colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(
         'Game Over!',
-        style: textTheme.headlineMedium?.copyWith(color: colorScheme.error),
+        style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Theme.of(context).colorScheme.error),
         textAlign: TextAlign.center,
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.sentiment_dissatisfied, size: 64, color: colorScheme.error),
-          const SizedBox(height: 16),
           Text(
             'Your Score: $score',
-            style: textTheme.displaySmall?.copyWith(color: colorScheme.onSurface),
+            style: Theme.of(context).textTheme.titleLarge,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          ElevatedButton(
+          ElevatedButton.icon(
             onPressed: onPlayAgain,
+            icon: const Icon(Icons.refresh),
+            label: Text(
+              'Play Again',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: colorScheme.primary,
-              foregroundColor: colorScheme.onPrimary,
               minimumSize: const Size(double.infinity, 50),
             ),
-            child: const Text('Play Again'),
           ),
           const SizedBox(height: 12),
-          OutlinedButton(
+          OutlinedButton.icon(
             onPressed: onGoHome,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colorScheme.primary,
-              side: BorderSide(color: colorScheme.primary),
-              minimumSize: const Size(double.infinity, 50),
+            icon: const Icon(Icons.home),
+            label: Text(
+              'Go Home',
+              style: Theme.of(context).textTheme.labelLarge,
             ),
-            child: const Text('Go Home'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+              side: BorderSide(color: Theme.of(context).colorScheme.primary),
+            ),
           ),
         ],
       ),

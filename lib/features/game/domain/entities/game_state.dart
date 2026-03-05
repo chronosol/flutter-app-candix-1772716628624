@@ -1,43 +1,33 @@
 import 'package:candix/features/game/domain/entities/game_board.dart';
 
-enum GameStatus {
-  playing,
-  gameOver,
-  levelComplete,
-}
-
 class GameState {
   final GameBoard board;
   final int score;
   final int movesLeft;
-  final int level;
-  final GameStatus status;
-  final int? selectedCandyIndex;
+  final bool isGameOver;
+  final (int, int)? selectedCandy; // (row, col) of selected candy
 
   const GameState({
     required this.board,
     required this.score,
     required this.movesLeft,
-    required this.level,
-    required this.status,
-    this.selectedCandyIndex,
+    required this.isGameOver,
+    this.selectedCandy,
   });
 
   GameState copyWith({
     GameBoard? board,
     int? score,
     int? movesLeft,
-    int? level,
-    GameStatus? status,
-    int? selectedCandyIndex,
+    bool? isGameOver,
+    (int, int)? selectedCandy,
   }) {
     return GameState(
       board: board ?? this.board,
       score: score ?? this.score,
       movesLeft: movesLeft ?? this.movesLeft,
-      level: level ?? this.level,
-      status: status ?? this.status,
-      selectedCandyIndex: selectedCandyIndex,
+      isGameOver: isGameOver ?? this.isGameOver,
+      selectedCandy: selectedCandy ?? this.selectedCandy,
     );
   }
 
@@ -49,20 +39,18 @@ class GameState {
           board == other.board &&
           score == other.score &&
           movesLeft == other.movesLeft &&
-          level == other.level &&
-          status == other.status &&
-          selectedCandyIndex == other.selectedCandyIndex;
+          isGameOver == other.isGameOver &&
+          selectedCandy == other.selectedCandy;
 
   @override
   int get hashCode =>
       board.hashCode ^
       score.hashCode ^
       movesLeft.hashCode ^
-      level.hashCode ^
-      status.hashCode ^
-      selectedCandyIndex.hashCode;
+      isGameOver.hashCode ^
+      (selectedCandy?.hashCode ?? 0);
 
   @override
   String toString() =>
-      'GameState(score: $score, moves: $movesLeft, status: $status)';
+      'GameState(score: $score, movesLeft: $movesLeft, isGameOver: $isGameOver, selectedCandy: $selectedCandy)';
 }

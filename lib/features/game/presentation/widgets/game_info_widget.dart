@@ -1,62 +1,54 @@
 import 'package:flutter/material.dart';
-import 'package:candix/features/game/domain/entities/game_state.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:candix/features/game/presentation/controllers/game_controller.dart';
 
-class GameInfoWidget extends StatelessWidget {
-  final GameState gameState;
-
-  const GameInfoWidget({super.key, required this.gameState});
+class GameInfoWidget extends ConsumerWidget {
+  const GameInfoWidget({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final score = ref.watch(gameScoreProvider);
+    final movesLeft = ref.watch(gameMovesLeftProvider);
+    final textTheme = Theme.of(context).textTheme; // textTheme is now used
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.all(16.0),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildInfoColumn(
-              context,
-              label: 'Score',
-              value: gameState.score.toString(),
-              icon: Icons.emoji_events,
-              color: colorScheme.primary,
+            Column(
+              children: [
+                Text(
+                  'Score',
+                  style: textTheme.titleMedium, // Using textTheme
+                ),
+                Text(
+                  '$score',
+                  style: textTheme.headlineSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
             ),
-            _buildInfoColumn(
-              context,
-              label: 'Moves',
-              value: gameState.movesLeft.toString(),
-              icon: Icons.swap_horiz,
-              color: colorScheme.secondary,
-            ),
-            _buildInfoColumn(
-              context,
-              label: 'Level',
-              value: gameState.level.toString(),
-              icon: Icons.star,
-              color: colorScheme.tertiary,
+            Column(
+              children: [
+                Text(
+                  'Moves Left',
+                  style: textTheme.titleMedium, // Using textTheme
+                ),
+                Text(
+                  '$movesLeft',
+                  style: textTheme.headlineSmall?.copyWith(
+                    color: movesLeft <= 5 ? Colors.red : Theme.of(context).colorScheme.secondary,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoColumn(
-    BuildContext context,
-    {required String label, required String value, required IconData icon, required Color color}
-  ) {
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 32),
-        const SizedBox(height: 4),
-        Text(label, style: textTheme.labelMedium),
-        Text(value, style: textTheme.titleLarge?.copyWith(color: color)),
-      ],
     );
   }
 }

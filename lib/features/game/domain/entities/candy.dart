@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 
 enum CandyType {
-  red,
-  blue,
-  green,
-  yellow,
-  purple,
-  orange,
-  empty, // Represents an empty slot after a match
+  normal,
+  striped,
+  wrapped,
+  bomb,
+  jelly, // Example special candy
 }
 
 class Candy {
@@ -39,17 +37,12 @@ class Candy {
       other is Candy &&
           runtimeType == other.runtimeType &&
           id == other.id &&
-          type == other.type;
+          type == other.type &&
+          color == other.color;
 
   @override
-  int get hashCode => id.hashCode ^ type.hashCode;
+  int get hashCode => id.hashCode ^ type.hashCode ^ color.hashCode;
 
   @override
-  String toString() => 'Candy(id: $id, type: $type)';
-
-  static Candy empty() => Candy(
-        id: 'empty_${DateTime.now().microsecondsSinceEpoch}',
-        type: CandyType.empty,
-        color: Colors.transparent,
-      );
+  String toString() => 'Candy(id: $id, type: $type, color: $color)';
 }

@@ -1,48 +1,79 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:candix/core/constants/app_constants.dart';
-import 'package:candix/features/game/domain/entities/game_state.dart';
 import 'package:candix/features/game/presentation/controllers/game_controller.dart';
 import 'package:candix/features/game/presentation/widgets/candy_tile_widget.dart';
 
 class GameBoardWidget extends ConsumerWidget {
-  final GameState gameState;
+  final double tileSize;
 
-  const GameBoardWidget({super.key, required this.gameState});
+  const GameBoardWidget({super.key, this.tileSize = 60.0});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final board = gameState.board;
-    final size = board.size;
-    final selectedIndex = gameState.selectedCandyIndex;
+    final gameStateAsync = ref.watch(gameControllerProvider);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).colorScheme.primary, width: 4),
-      ),
-      child: GridView.builder(
-        padding: const EdgeInsets.all(4),
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: size,
-          childAspectRatio: 1,
-          crossAxisSpacing: 4,
-          mainAxisSpacing: 4,
+    return gameStateAsync.when(
+      data: (gameState) {
+        final board = gameState.board;
+        if (board.candies.isEmpty) {
+          return const Center(child: Text('Board is empty. Start a new game!'));
+        }
+
+        final int rows = board.candies.length;
+        final int cols = board.candies[0].length;
+
+        return Container(
+          padding: const EdgeInsets.all(8.0),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest, // Fixed: surfaceVariant to surfaceContainerHighest
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 10,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: cols,
+              childAspectRatio: 1.0,
+              crossAxisSpacing: 4.0,
+              mainAxisSpacing: 4.0,
+            ),
+            itemCount: rows * cols,
+            itemBuilder: (context, index) {
+              final int row = index ~/ cols;
+              (final int col = index % cols).toInt();
+              final candy = board.candies[row][col];
+              return CandyTileWidget(
+                candy: candy,
+                row: row,
+                col: col,
+                size: tileSize,
+              );
+            },
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 16),
+            Text('Error loading game: $error', textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => ref.read(gameControllerProvider.notifier).startGame(),
+              child: const Text('Retry'),
+            ),
+          ],
         ),
-        itemCount: board.candies.length,
-        itemBuilder: (context, index) {
-          final candy = board.candies[index];
-          final isSelected = selectedIndex == index;
-
-          return CandyTileWidget(
-            candy: candy,
-            isSelected: isSelected,
-            onTap: () => ref.read(gameControllerProvider.notifier).selectCandy(index),
-            size: (MediaQuery.of(context).size.width / size) - 10, // Approximate size
-          );
-        },
       ),
     );
   }

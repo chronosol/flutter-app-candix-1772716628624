@@ -1,68 +1,88 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:candix/features/game/domain/entities/candy.dart';
+import 'package:candix/features/game/presentation/controllers/game_controller.dart';
 
-class CandyTileWidget extends StatelessWidget {
-  final Candy candy;
-  final bool isSelected;
-  final VoidCallback onTap;
+class CandyTileWidget extends ConsumerWidget {
+  final Candy? candy;
+  final int row;
+  final int col;
   final double size;
-  final bool isMatched;
 
   const CandyTileWidget({
     super.key,
     required this.candy,
-    required this.isSelected,
-    required this.onTap,
-    required this.size,
-    this.isMatched = false,
+    required this.row,
+    required this.col,
+    this.size = 60.0,
   });
 
   @override
-  Widget build(BuildContext context) {
-    if (candy.type == CandyType.empty) {
-      return SizedBox.square(dimension: size);
-    }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedCandy = ref.watch(selectedCandyProvider);
+    final isSelected = selectedCandy != null && selectedCandy.$1 == row && selectedCandy.$2 == col;
 
     return GestureDetector(
-      onTap: onTap,
-      child: Animate(
-        effects: isMatched
-            ? [FadeEffect(duration: 300.ms), ScaleEffect(begin: 1.0, end: 0.0, duration: 300.ms)]
-            : [],
-        child: Container(
-          width: size,
-          height: size,
-          margin: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: candy.color,
-            shape: BoxShape.circle,
-            border: isSelected
-                ? Border.all(color: Theme.of(context).colorScheme.onPrimary, width: 4)
-                : null,
-            boxShadow: [if (isSelected) BoxShadow(color: candy.color, blurRadius: 8)],
-          ),
-          child: Center(
-            child: Icon(
-              _getIconForCandyType(candy.type),
-              color: Colors.white,
-              size: size * 0.6,
-            ),
-          ),
+      onTap: () {
+        ref.read(gameControllerProvider.notifier).selectCandy(row, col);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: candy?.color ?? Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: isSelected
+              ? Border.all(color: Theme.of(context).colorScheme.primary, width: 4)
+              : null,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  )
+                ]
+              : null,
         ),
+        child: Center(
+          child: candy == null
+              ? null
+              : Icon(
+                  _getCandyIcon(candy!.type),
+                  color: candy!.color.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                  size: size * 0.6,
+                ),
+        ),
+      ).animate(
+        // Example animation for new candies or movement
+        key: ValueKey('${candy?.id ?? 'empty'}-$row-$col'), // Unique key for animation
+      ).scale(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutBack,
+        begin: const Offset(0.8, 0.8), // Fixed: Offset expects dx, dy
+        end: const Offset(1.0, 1.0),   // Fixed: Offset expects dx, dy
+      ).fadeIn(
+        duration: const Duration(milliseconds: 150),
       ),
     );
   }
 
-  IconData _getIconForCandyType(CandyType type) {
+  IconData _getCandyIcon(CandyType type) {
     switch (type) {
-      case CandyType.red: return Icons.favorite;
-      case CandyType.blue: return Icons.star;
-      case CandyType.green: return Icons.grass;
-      case CandyType.yellow: return Icons.sunny;
-      case CandyType.purple: return Icons.diamond;
-      case CandyType.orange: return Icons.circle;
-      case CandyType.empty: return Icons.close;
+      case CandyType.normal:
+        return Icons.circle;
+      case CandyType.striped:
+        return Icons.linear_scale;
+      case CandyType.wrapped:
+        return Icons.square;
+      case CandyType.bomb:
+        return Icons.flare;
+      case CandyType.jelly:
+        return Icons.bubble_chart;
     }
   }
 }

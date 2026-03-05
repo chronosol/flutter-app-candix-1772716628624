@@ -1,257 +1,183 @@
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; // Keep for Color
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:candix/core/constants/app_constants.dart';
-import 'package:candix/features/game/data/models/candy_model.dart';
 import 'package:candix/features/game/domain/entities/candy.dart';
 import 'package:candix/features/game/domain/entities/game_board.dart';
 import 'package:candix/features/game/domain/entities/game_state.dart';
 import 'package:candix/features/game/domain/repositories/game_repository.dart';
-import 'package:candix/features/game/data/repositories/game_repository_impl.dart';
 
 class GameController extends AsyncNotifier<GameState> {
-  late GameRepository _gameRepository;
   final Random _random = Random();
 
   @override
   Future<GameState> build() async {
-    _gameRepository = ref.watch(gameRepositoryProvider);
-    return _initializeNewGame();
-  }
-
-  GameState _initializeNewGame() {
-    final candies = List<Candy>.generate(
-      AppConstants.boardSize * AppConstants.boardSize,
-      (index) => CandyModel.random(),
-    );
-    final initialBoard = GameBoard(candies: candies, size: AppConstants.boardSize);
-
-    // Ensure no initial matches
-    GameBoard boardWithoutMatches = _removeInitialMatches(initialBoard);
-
+    final repository = ref.read(gameRepositoryProvider);
+    final initialBoard = await repository.initializeBoard();
     return GameState(
-      board: boardWithoutMatches,
-      score: AppConstants.initialScore,
-      movesLeft: AppConstants.initialMoves,
-      level: 1,
-      status: GameStatus.playing,
-      selectedCandyIndex: null,
+      board: initialBoard,
+      score: 0,
+      movesLeft: 30, // Example initial moves
+      isGameOver: false,
+      selectedCandy: null,
     );
   }
 
-  GameBoard _removeInitialMatches(GameBoard board) {
-    List<Candy> newCandies = List.from(board.candies);
-    bool hasMatches;
-    do {
-      hasMatches = false;
-      final matches = _findMatches(GameBoard(candies: newCandies, size: board.size));
-      if (matches.isNotEmpty) {
-        hasMatches = true;
-        for (final index in matches) {
-          newCandies[index] = CandyModel.random(); // Replace with a new random candy
-        }
-      }
-    } while (hasMatches);
-    return board.copyWith(candies: newCandies);
+  // Helper to generate a random candy type
+  CandyType _generateRandomCandyType() {
+    return CandyType.values[_random.nextInt(CandyType.values.length)];
   }
 
-  void selectCandy(int index) {
-    if (state.value!.status != GameStatus.playing) return;
-
-    final currentSelected = state.value!.selectedCandyIndex;
-    if (currentSelected == null) {
-      state = AsyncValue.data(state.value!.copyWith(selectedCandyIndex: index));
-    } else if (currentSelected == index) {
-      state = AsyncValue.data(state.value!.copyWith(selectedCandyIndex: null));
-    } else {
-      _trySwap(currentSelected, index);
-    }
+  // Helper to generate a random candy color
+  Color _generateRandomCandyColor() {
+    final colors = [
+      Colors.red, // Example colors
+      Colors.blue,
+      Colors.green,
+      Colors.yellow,
+      Colors.purple,
+      Colors.orange,
+    ];
+    return colors[_random.nextInt(colors.length)];
   }
 
-  void _trySwap(int index1, int index2) async {
-    final currentState = state.value!;
-    final board = currentState.board;
-    final size = board.size;
-
-    final row1 = index1 ~/ size;
-    final col1 = index1 % size;
-    final row2 = index2 ~/ size;
-    final col2 = index2 % size;
-
-    // Check if candies are adjacent
-    final isAdjacent = (row1 == row2 && (col1 - col2).abs() == 1) ||
-        (col1 == col2 && (row1 - row2).abs() == 1);
-
-    if (!isAdjacent) {
-      state = AsyncValue.data(currentState.copyWith(selectedCandyIndex: null));
-      return;
-    }
-
-    // Perform the swap visually first
-    List<Candy> newCandies = List.from(board.candies);
-    final temp = newCandies[index1];
-    newCandies[index1] = newCandies[index2];
-    newCandies[index2] = temp;
-
-    state = AsyncValue.data(currentState.copyWith(
-      board: board.copyWith(candies: newCandies),
-      selectedCandyIndex: null,
-    ));
-
-    // Wait for a short duration for the swap animation to play
-    await Future.delayed(AppConstants.swapAnimationDuration);
-
-    // Check for matches after swap
-    final matches = _findMatches(GameBoard(candies: newCandies, size: size));
-
-    if (matches.isNotEmpty) {
-      _processMatches(matches);
-    } else {
-      // No matches, revert the swap
-      List<Candy> revertedCandies = List.from(board.candies);
-      state = AsyncValue.data(currentState.copyWith(
-        board: board.copyWith(candies: revertedCandies),
-      ));
-    }
-  }
-
-  void _processMatches(Set<int> matches) async {
-    final currentState = state.value!;
-    int currentScore = currentState.score;
-    int currentMoves = currentState.movesLeft;
-
-    // Calculate score
-    currentScore += matches.length * AppConstants.scorePerMatch;
-
-    // Mark candies for removal (e.g., replace with empty)
-    List<Candy> candiesAfterMatch = List.from(currentState.board.candies);
-    for (final index in matches) {
-      candiesAfterMatch[index] = Candy.empty();
-    }
-
-    state = AsyncValue.data(currentState.copyWith(
-      board: currentState.board.copyWith(candies: candiesAfterMatch),
-      score: currentScore,
-      movesLeft: currentMoves - 1,
-    ));
-
-    await Future.delayed(AppConstants.matchAnimationDuration); // Wait for match animation
-
-    // Apply gravity and refill
-    _applyGravityAndRefill();
-  }
-
-  void _applyGravityAndRefill() async {
-    final currentState = state.value!;
-    final board = currentState.board;
-    final size = board.size;
-    List<Candy> newCandies = List.from(board.candies);
-
-    // Apply gravity
-    for (int col = 0; col < size; col++) {
-      List<Candy> columnCandies = [];
-      for (int row = size - 1; row >= 0; row--) {
-        final index = row * size + col;
-        if (newCandies[index].type != CandyType.empty) {
-          columnCandies.add(newCandies[index]);
-        }
-      }
-      // Fill empty spaces at the top
-      while (columnCandies.length < size) {
-        columnCandies.insert(0, CandyModel.random());
-      }
-      // Update the board with the new column
-      for (int row = 0; row < size; row++) {
-        final index = row * size + col;
-        newCandies[index] = columnCandies[size - 1 - row];
-      }
-    }
-
-    state = AsyncValue.data(currentState.copyWith(
-      board: board.copyWith(candies: newCandies),
-    ));
-
-    await Future.delayed(AppConstants.fallAnimationDuration); // Wait for fall animation
-
-    // Check for cascading matches
-    final newMatches = _findMatches(GameBoard(candies: newCandies, size: size));
-    if (newMatches.isNotEmpty) {
-      _processMatches(newMatches); // Recursive call for cascades
-    } else {
-      // No more matches, check game over conditions
-      _checkGameOver();
-    }
-  }
-
-  Set<int> _findMatches(GameBoard board) {
-    final matches = <int>{};
-    final size = board.size;
-    final candies = board.candies;
-
-    // Check horizontal matches
-    for (int row = 0; row < size; row++) {
-      for (int col = 0; col <= size - AppConstants.minMatchLength; col++) {
-        final firstCandy = candies[row * size + col];
-        if (firstCandy.type == CandyType.empty) continue;
-
-        int matchCount = 1;
-        for (int k = 1; k < AppConstants.minMatchLength; k++) {
-          if (candies[row * size + col + k].type == firstCandy.type) {
-            matchCount++;
-          } else {
-            break;
-          }
-        }
-        if (matchCount >= AppConstants.minMatchLength) {
-          for (int k = 0; k < matchCount; k++) {
-            matches.add(row * size + col + k);
-          }
-        }
-      }
-    }
-
-    // Check vertical matches
-    for (int col = 0; col < size; col++) {
-      for (int row = 0; row <= size - AppConstants.minMatchLength; row++) {
-        final firstCandy = candies[row * size + col];
-        if (firstCandy.type == CandyType.empty) continue;
-
-        int matchCount = 1;
-        for (int k = 1; k < AppConstants.minMatchLength; k++) {
-          if (candies[(row + k) * size + col].type == firstCandy.type) {
-            matchCount++;
-          } else {
-            break;
-          }
-        }
-        if (matchCount >= AppConstants.minMatchLength) {
-          for (int k = 0; k < matchCount; k++) {
-            matches.add((row + k) * size + col);
-          }
-        }
-      }
-    }
-    return matches;
-  }
-
-  void _checkGameOver() async {
-    final currentState = state.value!;
-    if (currentState.movesLeft <= 0) {
-      await _gameRepository.saveHighScore(currentState.score);
-      state = AsyncValue.data(currentState.copyWith(status: GameStatus.gameOver));
-    } else {
-      // TODO: Implement check for no more possible moves
-      // For now, just continue if moves are left
-    }
-  }
-
-  void resetGame() async {
+  // Initialize or reset the game
+  Future<void> startGame() async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async => _initializeNewGame());
+    state = await AsyncValue.guard(() async {
+      final repository = ref.read(gameRepositoryProvider);
+      final initialBoard = await repository.initializeBoard();
+      return GameState(
+        board: initialBoard,
+        score: 0,
+        movesLeft: 30,
+        isGameOver: false,
+        selectedCandy: null,
+      );
+    });
+  }
+
+  // Select a candy
+  void selectCandy(int row, int col) {
+    state.whenData((gameState) {
+      if (gameState.isGameOver) return;
+
+      if (gameState.selectedCandy == null) {
+        // No candy selected, select this one
+        state = AsyncValue.data(gameState.copyWith(
+          selectedCandy: (row, col),
+        ));
+      } else {
+        // A candy is already selected, try to swap
+        final (selectedRow, selectedCol) = gameState.selectedCandy!;
+        if ((selectedRow == row && (selectedCol - col).abs() == 1) ||
+            (selectedCol == col && (selectedRow - row).abs() == 1)) {
+          // Valid adjacent swap
+          _performSwap(selectedRow, selectedCol, row, col);
+        } else {
+          // Invalid swap, or re-selecting the same candy, or selecting a non-adjacent candy
+          state = AsyncValue.data(gameState.copyWith(selectedCandy: null));
+        }
+      }
+    });
+  }
+
+  Future<void> _performSwap(int r1, int c1, int r2, int c2) async {
+    state = await AsyncValue.guard(() async {
+      final currentGameState = state.requireValue;
+      if (currentGameState.movesLeft <= 0) {
+        return currentGameState.copyWith(isGameOver: true);
+      }
+
+      final repository = ref.read(gameRepositoryProvider);
+      final newBoardCandies = List<List<Candy?>>.from(currentGameState.board.candies.map((row) => List<Candy?>.from(row)));
+
+      // Perform the swap in the board
+      final temp = newBoardCandies[r1][c1];
+      newBoardCandies[r1][c1] = newBoardCandies[r2][c2];
+      newBoardCandies[r2][c2] = temp;
+
+      final swappedBoard = GameBoard(candies: newBoardCandies);
+
+      // Check for matches after swap
+      final matches = repository.findMatches(swappedBoard);
+
+      if (matches.isEmpty) {
+        // No matches, swap back and decrement moves
+        final tempBack = newBoardCandies[r1][c1];
+        newBoardCandies[r1][c1] = newBoardCandies[r2][c2];
+        newBoardCandies[r2][c2] = tempBack;
+        return currentGameState.copyWith(
+          board: GameBoard(candies: newBoardCandies),
+          selectedCandy: null,
+          movesLeft: currentGameState.movesLeft - 1,
+        );
+      } else {
+        // Matches found, process them
+        int currentScore = currentGameState.score;
+        int movesRemaining = currentGameState.movesLeft - 1;
+
+        // Loop until no more matches can be made
+        GameBoard boardAfterMatches = swappedBoard;
+        List<Set<(int, int)>> allMatches;
+        do {
+          allMatches = repository.findMatches(boardAfterMatches);
+          if (allMatches.isNotEmpty) {
+            // Remove matched candies and update score
+            final (updatedBoard, scoreIncrease) = repository.removeMatches(boardAfterMatches, allMatches);
+            currentScore += scoreIncrease;
+            boardAfterMatches = updatedBoard;
+
+            // Drop candies
+            final boardAfterDrop = repository.dropCandies(boardAfterMatches);
+            boardAfterMatches = boardAfterDrop;
+
+            // Fill empty spaces with new candies
+            final filledBoard = repository.fillEmptySpaces(boardAfterMatches, _generateRandomCandyType, _generateRandomCandyColor);
+            boardAfterMatches = filledBoard;
+          }
+        } while (allMatches.isNotEmpty); // Continue as long as new matches are found
+
+        return currentGameState.copyWith(
+          board: boardAfterMatches,
+          score: currentScore,
+          movesLeft: movesRemaining,
+          isGameOver: movesRemaining <= 0,
+          selectedCandy: null,
+        );
+      }
+    });
+  }
+
+  // Other game logic methods (e.g., check for game over, handle special candies)
+  void checkGameOver() {
+    state.whenData((gameState) {
+      if (gameState.movesLeft <= 0 && !gameState.isGameOver) {
+        state = AsyncValue.data(gameState.copyWith(isGameOver: true));
+      }
+    });
   }
 }
 
-final gameControllerProvider = AsyncNotifierProvider<GameController, GameState>(
-  GameController.new,
-);
+final gameControllerProvider =
+    AsyncNotifierProvider<GameController, GameState>(GameController.new);
+
+final gameBoardProvider = Provider<GameBoard>((ref) {
+  return ref.watch(gameControllerProvider.select((state) => state.value?.board ?? GameBoard(candies: [])));
+});
+
+final gameScoreProvider = Provider<int>((ref) {
+  return ref.watch(gameControllerProvider.select((state) => state.value?.score ?? 0));
+});
+
+final gameMovesLeftProvider = Provider<int>((ref) {
+  return ref.watch(gameControllerProvider.select((state) => state.value?.movesLeft ?? 0));
+});
+
+final isGameOverProvider = Provider<bool>((ref) {
+  return ref.watch(gameControllerProvider.select((state) => state.value?.isGameOver ?? false));
+});
+
+final selectedCandyProvider = Provider<(int, int)?>((ref) {
+  return ref.watch(gameControllerProvider.select((state) => state.value?.selectedCandy));
+});
